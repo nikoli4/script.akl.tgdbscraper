@@ -479,9 +479,9 @@ class TheGamesDB(Scraper):
         if 'hdd' in online_data and online_data['hdd'] != '' and online_data['hdd'] is not None:
             hdd = online_data['hdd']
             tags.append(f'hdd:{hdd}')
-        if 'video' in online_data and online_data['video'] != '':
+        if 'video' in online_data and online_data['video'] not in ('', None):
             tags.append(online_data['video'])
-        if 'sound' in online_data and online_data['sound'] != '':
+        if 'sound' in online_data and online_data['sound'] not in ('', None):
             tags.append(online_data['sound'])
         return tags
 
