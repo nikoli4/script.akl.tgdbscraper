@@ -90,16 +90,14 @@ class TheGamesDB(Scraper):
     # --- Constructor ----------------------------------------------------------------------------
     def __init__(self):
         # --- This scraper settings ---
-        # Make sure this is the public key (limited by IP) and not the private key.
-        self.api_public_key = '828be1fb8f3182d055f1aed1f7d4da8bd4ebc160c3260eae8ee57ea823b42415'
+        # TheGamesDB requires an API key. Users should configure their own
+        # public API key in the scraper add-on settings.
         self.api_key = settings.getSetting('thegamesdb_apikey')
-        
-        if self.api_key is None or self.api_key == '':
-            self.api_key = self.api_public_key
-            logger.info('Applied embedded public API key')
-        else:
+        if self.api_key:
             logger.info('Applied API key from settings')
-            
+        else:
+            logger.warning('TheGamesDB API key is not configured')
+
         # --- Cached TGDB metadata ---
         self.cache_candidates = {}
         self.cache_metadata = {}
@@ -111,10 +109,8 @@ class TheGamesDB(Scraper):
         self.publishers_cached = {}
 
         cache_dir = settings.getSettingAsFilePath('scraper_cache_dir')
-        
         self.GLOBAL_CACHE_LIST.append(self.GLOBAL_CACHE_TGDB_GENRES)
         self.GLOBAL_CACHE_LIST.append(self.GLOBAL_CACHE_TGDB_DEVELOPERS)
-                
         super(TheGamesDB, self).__init__(cache_dir)
     
     # --- Base class abstract methods ------------------------------------------------------------
@@ -142,9 +138,16 @@ class TheGamesDB(Scraper):
     def supports_assets(self):
         return True
 
-    # TGDB does not require any API keys. By default status_dic is configured for successful
-    # operation so return it as it is.
+    # TheGamesDB requires an API key.
     def check_before_scraping(self, status_dic):
+        if not self.api_key:
+            status_dic['status'] = False
+            status_dic['dialog'] = kodi.KODI_MESSAGE_DIALOG
+            status_dic['msg'] = (
+                'TheGamesDB API key is not configured. '
+                'Enter your public API key in the TheGamesDB scraper add-on settings.'
+            )
+
         return status_dic
 
     def get_candidates(self, search_term, rom: ROMObj, platform, status_dic):
