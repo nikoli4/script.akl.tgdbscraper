@@ -655,12 +655,23 @@ class TheGamesDB(Scraper):
 
         # --- Check HTTP error codes ---
         if http_code != 200:
-            try:
-                error_msg = json_data['message']
-            except Exception:
-                error_msg = 'Unknown/unspecified error.'
+            if http_code == 403:
+                error_msg = (
+                    'TheGamesDB rejected the API request. '
+                    'Check that your API key is valid and that your API allowance '
+                    'has not been exhausted.'
+                )
+            else:
+                try:
+                    error_msg = json_data['message']
+                except Exception:
+                    error_msg = 'Unknown/unspecified error.'
+
             logger.error('TGDB msg "{}"'.format(error_msg))
-            self._handle_error(status_dic, 'HTTP code {} message "{}"'.format(http_code, error_msg))
+            self._handle_error(
+                status_dic,
+                'HTTP code {} message "{}"'.format(http_code, error_msg)
+            )
             return None
 
         # If json_data is None at this point is because of an exception in net_get_URL()
