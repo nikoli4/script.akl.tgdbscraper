@@ -55,6 +55,8 @@ def run_plugin():
         
     if parser.get_command() == addons.AklAddonArguments.SCRAPE:
         run_scraper(parser)
+    elif parser.get_command() == addons.AklAddonArguments.SCRAPE_SYSTEM:
+        run_system_scraper(parser)
     elif parser.parser.cmd == "update-settings":
         update_plugin_settings()
     else:
@@ -95,6 +97,65 @@ def run_scraper(args: addons.AklAddonArguments):
                                             args.get_entity_id(),
                                             scraped_roms)
         pdialog.endProgress()
+
+
+def run_system_scraper(args: addons.AklAddonArguments):
+    logger.debug(
+        '========== run_system_scraper() BEGIN '
+        '=========================================='
+    )
+
+    settings = ScraperSettings.from_settings_dict(
+        args.get_settings()
+    )
+
+    pdialog = kodi.ProgressDialog()
+
+    tgdb_scraper = TheGamesDB()
+
+    scraper_strategy = ScrapeStrategy(
+        args.get_webserver_host(),
+        args.get_webserver_port(),
+        settings,
+        tgdb_scraper,
+        pdialog
+    )
+
+    pdialog.startProgress(
+        'Retrieving system information from TheGamesDB ...',
+        100
+    )
+
+    system_obj = tgdb_scraper.process_system(
+        args.get_platform(),
+        args.get_system_name(),
+        {}
+    )
+
+    if system_obj is None:
+        pdialog.endProgress()
+        kodi.notify_error(
+            'Unable to retrieve system information from TheGamesDB.'
+        )
+        return
+
+    pdialog.updateProgress(
+        90,
+        'Saving system information ...'
+    )
+
+    scraper_strategy.store_scraped_system(
+        args.get_akl_addon_id(),
+        args.get_entity_id(),
+        system_obj
+    )
+
+    pdialog.endProgress()
+
+    logger.debug(
+        '========== run_system_scraper() END '
+        '============================================'
+    )
 
 
 # ---------------------------------------------------------------------------------------------

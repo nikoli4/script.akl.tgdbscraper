@@ -31,7 +31,7 @@ from urllib.parse import quote_plus
 from akl import constants, platforms, settings
 from akl.utils import io, net, kodi
 from akl.scrapers import Scraper
-from akl.api import ROMObj
+from akl.api import ROMObj, MetaDataObj
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,7 @@ class TheGamesDB(Scraper):
     URL_ByGameID = 'https://api.thegamesdb.net/v1/Games/ByGameID'
     URL_Platforms = 'https://api.thegamesdb.net/v1/Platforms'
     URL_Genres = 'https://api.thegamesdb.net/v1/Genres'
+    URL_ByPlatformID = 'https://api.thegamesdb.net/v1/Platforms/ByPlatformID'
     URL_Developers = 'https://api.thegamesdb.net/v1/Developers'
     URL_Publishers = 'https://api.thegamesdb.net/v1/Publishers'
     URL_Images = 'https://api.thegamesdb.net/v1/Games/Images'
@@ -149,6 +150,104 @@ class TheGamesDB(Scraper):
             )
 
         return status_dic
+
+    def process_system(
+            self,
+            platform_long_name,
+            system_name,
+            asset_paths,
+            progress_callback=None):
+
+        logger.info(
+            'TheGamesDB.process_system() Processing system "{}".'.format(
+                platform_long_name
+            )
+        )
+
+        status_dic = kodi.new_status_dic(
+            'TheGamesDB system scrape OK'
+        )
+
+        self.check_before_scraping(status_dic)
+
+        if not status_dic['status']:
+            return None
+
+        platform_id = convert_AKL_platform_to_TheGamesDB(
+            platform_long_name
+        )
+
+        if platform_id == DEFAULT_PLAT_TGDB:
+            logger.warning(
+                'TheGamesDB.process_system() No TGDB platform mapping '
+                'for "{}".'.format(platform_long_name)
+            )
+            return None
+
+        url = (
+            TheGamesDB.URL_ByPlatformID
+            + '?apikey={}&id={}&fields=overview,developer'.format(
+                self._get_API_key(),
+                platform_id
+            )
+        )
+
+        json_data = self._retrieve_URL_as_JSON(
+            url,
+            status_dic
+        )
+
+        if not status_dic['status'] or not json_data:
+            return None
+
+        platforms_dic = (
+            json_data.get('data', {})
+            .get('platforms', {})
+        )
+
+        platform_dic = platforms_dic.get(
+            str(platform_id)
+        )
+
+        if platform_dic is None:
+            # Be tolerant if TGDB ever returns integer keys instead.
+            platform_dic = platforms_dic.get(
+                platform_id
+            )
+
+        if not platform_dic:
+            logger.warning(
+                'TheGamesDB.process_system() Platform {} was not '
+                'present in TGDB response.'.format(platform_id)
+            )
+            return None
+
+        system_obj = MetaDataObj({
+            'assets': {}
+        })
+
+        overview = platform_dic.get('overview')
+        if overview:
+            system_obj.set_plot(
+                overview
+            )
+
+        developer = platform_dic.get('developer')
+        if developer:
+            system_obj.set_developer(
+                developer
+            )
+
+        logger.info(
+            'TheGamesDB.process_system() Retrieved metadata for "{}": '
+            'developer="{}", plot={} characters.'.format(
+                platform_long_name,
+                developer or '',
+                len(overview) if overview else 0
+            )
+        )
+
+        return system_obj
 
     def get_candidates(self, search_term, rom: ROMObj, platform, status_dic):
         # If the scraper is disabled return None and do not mark error in status_dic.
