@@ -1,3 +1,8 @@
+## 1.2.1
+
+- Maintenance release.
+- No functional scraper changes from 1.2.0.
+
 ## 1.2.0
 - Added AKL system/platform metadata scraping from TheGamesDB.
 - Added system overview and developer metadata support.
