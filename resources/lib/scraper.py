@@ -793,24 +793,58 @@ class TheGamesDB(Scraper):
     # @param json_data: [dict] Dictionary with JSON data retrieved from TGDB.
     # @returns: [None]
     def _check_overloading(self, json_data, status_dic):
-        # This is an integer.
-        remaining_monthly_allowance = json_data['remaining_monthly_allowance']
-        extra_allowance = json_data['extra_allowance']
-        if not extra_allowance:
+        if not isinstance(json_data, dict):
+            logger.warning(
+                'Threshold check: TGDB response is not a dictionary. '
+                'Skipping allowance check.'
+            )
+            return
+
+        remaining_monthly_allowance = json_data.get(
+            'remaining_monthly_allowance'
+        )
+        extra_allowance = json_data.get('extra_allowance')
+
+        # Some TGDB endpoints/responses may not include allowance information.
+        # In that case there is nothing to check here.
+        if remaining_monthly_allowance is None:
+            logger.debug(
+                'Threshold check: TGDB response does not contain '
+                'remaining_monthly_allowance. Skipping allowance check.'
+            )
+            return
+
+        if extra_allowance is None:
             extra_allowance = 0
-            
-        logger.debug('Threshold check: remaining_monthly_allowance = {}'.format(remaining_monthly_allowance))
-        logger.debug('Threshold check: extra_allowance = {}'.format(extra_allowance))
+
+        logger.debug(
+            'Threshold check: remaining_monthly_allowance = {}'.format(
+                remaining_monthly_allowance
+            )
+        )
+        logger.debug(
+            'Threshold check: extra_allowance = {}'.format(
+                extra_allowance
+            )
+        )
+
         total_allowance = remaining_monthly_allowance + extra_allowance
-        
+
         if total_allowance > 0:
             return
-        logger.error('Threshold check: remaining total allowance <= 0')
+
+        logger.error(
+            'Threshold check: remaining total allowance <= 0'
+        )
         logger.error('Disabling TGDB scraper.')
+
         self.scraper_disabled = True
         status_dic['status'] = False
         status_dic['dialog'] = kodi.KODI_MESSAGE_DIALOG
-        status_dic['msg'] = f'TGDB monthly/total allowance is {total_allowance}. Scraper disabled.'
+        status_dic['msg'] = (
+            'TGDB monthly/total allowance is {}. '
+            'Scraper disabled.'.format(total_allowance)
+        )
         
 
 # ------------------------------------------------------------------------------------------------
