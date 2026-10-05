@@ -1,3 +1,8 @@
+## 1.2.2
+
+- Updated icon and fanart to the AKL Revival artwork.
+- Renamed the artwork assets so Kodi refreshes cached add-on artwork.
+
 ## 1.2.1
 
 - Maintenance release.
