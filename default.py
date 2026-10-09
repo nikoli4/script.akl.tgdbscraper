@@ -57,7 +57,7 @@ def run_plugin():
         run_scraper(parser)
     elif parser.get_command() == addons.AklAddonArguments.SCRAPE_SYSTEM:
         run_system_scraper(parser)
-    elif parser.parser.cmd == "update-settings":
+    elif parser.args.cmd == "update-settings":
         update_plugin_settings()
     else:
         kodi.dialog_OK(text=parser.get_help())
@@ -126,10 +126,20 @@ def run_system_scraper(args: addons.AklAddonArguments):
         100
     )
 
+    asset_paths = {
+        asset_id: io.FileName(
+            asset_path,
+            isdir=True
+        )
+        for asset_id, asset_path
+        in args.get_asset_paths().items()
+    }
+
     system_obj = tgdb_scraper.process_system(
         args.get_platform(),
         args.get_system_name(),
-        {}
+        asset_paths,
+        scraper_settings=settings
     )
 
     if system_obj is None:
@@ -163,10 +173,23 @@ def run_system_scraper(args: addons.AklAddonArguments):
 # ---------------------------------------------------------------------------------------------
 def update_plugin_settings():
     supported_assets = '|'.join(TheGamesDB.supported_asset_list)
+    supported_system_assets = '|'.join(
+        TheGamesDB.supported_system_asset_list
+    )
     supported_metadata = '|'.join(TheGamesDB.supported_metadata_list)
-    
-    settings.setSetting("akl.scraper.supported_assets", supported_assets)
-    settings.setSetting("akl.scraper.supported_metadata", supported_metadata)
+
+    settings.setSetting(
+        "akl.scraper.supported_assets",
+        supported_assets
+    )
+    settings.setSetting(
+        "akl.scraper.supported_system_assets",
+        supported_system_assets
+    )
+    settings.setSetting(
+        "akl.scraper.supported_metadata",
+        supported_metadata
+    )
     kodi.notify("Updated AKL plugin settings for this addon")
 
 

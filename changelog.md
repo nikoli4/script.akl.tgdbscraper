@@ -1,3 +1,12 @@
+## 1.2.3
+
+- Updated the AKL shared module dependency to version 1.4.1.
+- Added system artwork downloading for Fanart, Banner, and Icon.
+- Added filtering to download only selected system artwork types.
+- Added overwrite protection for existing system artwork.
+- Fixed system artwork destination handling.
+- Fixed scraper capability refresh through the update-settings command.
+
 ## 1.2.2
 
 - Updated icon and fanart to the AKL Revival artwork.

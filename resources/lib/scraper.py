@@ -29,7 +29,7 @@ from urllib.parse import quote_plus
 
 # --- AKL packages ---
 from akl import constants, platforms, settings
-from akl.utils import io, net, kodi
+from akl.utils import io, net, kodi, text
 from akl.scrapers import Scraper
 from akl.api import ROMObj, MetaDataObj
 
@@ -65,6 +65,11 @@ class TheGamesDB(Scraper):
         constants.ASSET_BOXBACK_ID,
         constants.ASSET_TRAILER_ID
     ]
+    supported_system_asset_list = [
+        constants.ASSET_FANART_ID,
+        constants.ASSET_BANNER_ID,
+        constants.ASSET_ICON_ID,
+    ]
     asset_name_mapping = {
         'screenshot': constants.ASSET_SNAP_ID,
         'boxart': constants.ASSET_BOXFRONT_ID,
@@ -81,6 +86,7 @@ class TheGamesDB(Scraper):
     URL_Platforms = 'https://api.thegamesdb.net/v1/Platforms'
     URL_Genres = 'https://api.thegamesdb.net/v1/Genres'
     URL_ByPlatformID = 'https://api.thegamesdb.net/v1/Platforms/ByPlatformID'
+    URL_PlatformImages = 'https://api.thegamesdb.net/v1/Platforms/Images'
     URL_Developers = 'https://api.thegamesdb.net/v1/Developers'
     URL_Publishers = 'https://api.thegamesdb.net/v1/Publishers'
     URL_Images = 'https://api.thegamesdb.net/v1/Games/Images'
@@ -156,6 +162,7 @@ class TheGamesDB(Scraper):
             platform_long_name,
             system_name,
             asset_paths,
+            scraper_settings=None,
             progress_callback=None):
 
         logger.info(
@@ -186,18 +193,36 @@ class TheGamesDB(Scraper):
 
         url = (
             TheGamesDB.URL_ByPlatformID
-            + '?apikey={}&id={}&fields=overview,developer'.format(
+            + '?apikey={}&id={}&fields={}'.format(
                 self._get_API_key(),
-                platform_id
+                platform_id,
+                'icon,console,controller,developer,manufacturer,media,'
+                'cpu,memory,graphics,sound,maxcontrollers,display,overview,youtube'
             )
         )
-
         json_data = self._retrieve_URL_as_JSON(
             url,
             status_dic
         )
 
         if not status_dic['status'] or not json_data:
+            return None
+
+        # Retrieve artwork available for this platform.
+        images_url = (
+            TheGamesDB.URL_PlatformImages
+            + '?apikey={}&platforms_id={}'.format(
+                self._get_API_key(),
+                platform_id
+            )
+        )
+
+        images_json = self._retrieve_URL_as_JSON(
+            images_url,
+            status_dic
+        )
+
+        if not status_dic['status']:
             return None
 
         platforms_dic = (
@@ -238,6 +263,95 @@ class TheGamesDB(Scraper):
                 developer
             )
 
+        # Process platform artwork returned by TGDB.
+        system_asset_mapping = {
+            'fanart': constants.ASSET_FANART_ID,
+            'banner': constants.ASSET_BANNER_ID,
+            'icon': constants.ASSET_ICON_ID,
+        }
+
+        images_data = (
+            images_json.get('data', {})
+            if images_json
+            else {}
+        )
+
+        base_url = (
+            images_data.get('base_url', {})
+            .get('original', '')
+        )
+
+        platform_images = (
+            images_data.get('images', {})
+            .get(str(platform_id), [])
+        )
+
+        if not platform_images:
+            # Be tolerant if TGDB ever returns integer keys instead.
+            platform_images = (
+                images_data.get('images', {})
+                .get(platform_id, [])
+            )
+
+        allowed_asset_ids = (
+            set(scraper_settings.asset_IDs_to_scrape or [])
+            if scraper_settings is not None
+            else set(system_asset_mapping.values())
+        )
+
+        for tgdb_type, asset_id in system_asset_mapping.items():
+            if asset_id not in allowed_asset_ids:
+                continue
+
+            asset_dir_FN = asset_paths.get(asset_id)
+
+            if asset_dir_FN is None:
+                continue
+
+            matching_images = [
+                image
+                for image in platform_images
+                if image.get('type') == tgdb_type
+            ]
+
+            if not matching_images:
+                continue
+
+            # TGDB may provide several fanarts. For system scraping, use the
+            # first image returned for each supported artwork type.
+            image_dic = matching_images[0]
+            image_filename = image_dic.get('filename')
+
+            if not image_filename or not base_url:
+                continue
+
+            selected_asset = {
+                'asset_ID': asset_id,
+                'display_name': tgdb_type,
+                'url': (
+                    base_url.rstrip('/')
+                    + '/'
+                    + image_filename.lstrip('/')
+                ),
+            }
+
+            downloaded_asset = self.download_system_asset(
+                selected_asset,
+                system_name,
+                asset_dir_FN,
+                status_dic,
+                overwrite_existing=(
+                    scraper_settings.overwrite_existing_assets
+                    if scraper_settings is not None else False
+                )
+            )
+
+            if downloaded_asset is not None:
+                system_obj.set_asset(
+                    asset_id,
+                    downloaded_asset.getPath()
+                )
+
         logger.info(
             'TheGamesDB.process_system() Retrieved metadata for "{}": '
             'developer="{}", plot={} characters.'.format(
@@ -248,6 +362,113 @@ class TheGamesDB(Scraper):
         )
 
         return system_obj
+
+    def download_system_asset(
+            self,
+            selected_asset,
+            system_name,
+            asset_dir_FN,
+            status_dic,
+            overwrite_existing=False):
+
+        if selected_asset is None or asset_dir_FN is None:
+            return None
+
+        asset_id = selected_asset.get('asset_ID')
+
+        logger.info(
+            'TheGamesDB.download_system_asset() '
+            'Downloading {} for "{}".'.format(
+                asset_id,
+                system_name
+            )
+        )
+
+        asset_path_noext_FN = (
+            asset_dir_FN
+            + text.str_to_filename_str(system_name)
+        )
+
+        image_url, image_url_log = self.resolve_asset_URL(
+            selected_asset,
+            status_dic
+        )
+
+        if not status_dic['status']:
+            return None
+
+        if image_url is None or not image_url:
+            logger.error(
+                'TheGamesDB.download_system_asset() '
+                'Could not resolve URL for {}.'.format(
+                    asset_id
+                )
+            )
+            return None
+
+        image_ext = self.resolve_asset_URL_extension(
+            selected_asset,
+            image_url,
+            status_dic
+        )
+
+        if not status_dic['status']:
+            return None
+
+        if image_ext is None or not image_ext:
+            logger.error(
+                'TheGamesDB.download_system_asset() '
+                'Could not resolve extension for {}.'.format(
+                    asset_id
+                )
+            )
+            return None
+
+        if image_ext == 'url':
+            return io.Url(image_url)
+
+        image_local_path = asset_path_noext_FN.append(
+            '.' + image_ext
+        )
+
+        if not overwrite_existing and image_local_path.exists():
+            logger.info(
+                'TheGamesDB.download_system_asset() '
+                'Keeping existing {} artwork for "{}".'.format(
+                    asset_id,
+                    system_name
+                )
+            )
+            return image_local_path
+
+        logger.debug(
+            'TheGamesDB.download_system_asset() '
+            'Downloading {} asset.'.format(asset_id)
+        )
+
+        try:
+            image_local_path = self.download_image(
+                image_url,
+                image_local_path
+            )
+        except Exception:
+            logger.exception(
+                'TheGamesDB.download_system_asset() '
+                'Failed downloading {}.'.format(
+                    asset_id
+                )
+            )
+            return None
+
+        logger.info(
+            'TheGamesDB.download_system_asset() '
+            'Downloaded {} to "{}".'.format(
+                asset_id,
+                image_local_path.getPath()
+            )
+        )
+
+        return image_local_path
 
     def get_candidates(self, search_term, rom: ROMObj, platform, status_dic):
         # If the scraper is disabled return None and do not mark error in status_dic.

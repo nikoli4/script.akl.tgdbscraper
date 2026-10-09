@@ -55,6 +55,10 @@
                     <level>4</level>
                     <default>fanart|banner|snap|clearlogo|boxfront|boxback|trailer</default>
                 </setting>
+                <setting id="akl.scraper.supported_system_assets" type="string" label="System assets supported by this scraper" help="">
+                    <level>4</level>
+                    <default>fanart|banner|icon</default>
+                </setting>
                 <setting id="akl.scraper.friendlyname" type="string" label="Scraper friendlyname" help="">
                     <level>4</level>
                     <default>TheGamesDB</default>
